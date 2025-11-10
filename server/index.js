@@ -1,52 +1,37 @@
-import express from 'express';
-import fetch from 'node-fetch';
-import dotenv from 'dotenv';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import OpenAI from "openai";
+
 dotenv.config();
 
-
-// ✅ Create the Express app
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-// ✅ Load your API key
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
-if (!OPENAI_KEY) {
-  console.warn('⚠️  OPENAI_API_KEY not set in .env');
-}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// ✅ Define chat endpoint
-app.post('/api/chat', async (req, res) => {
+// Chat endpoint
+app.post("/api/chat", async (req, res) => {
   try {
-    const { messages } = req.body;
-    if (!messages) return res.status(400).json({ error: 'messages required' });
+    const userMessage = req.body.message;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages,
-        max_tokens: 800,
-        temperature: 0.7,
-      }),
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // you can use gpt-4 or gpt-3.5-turbo too
+      messages: [
+        { role: "system", content: "You are a helpful AI assistant." },
+        { role: "user", content: userMessage },
+      ],
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      return res.status(response.status).json(data);
-    }
-
-    const assistant = data.choices?.[0]?.message ?? { role: 'assistant', content: 'No reply' };
-    res.json({ assistant, raw: data });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'server error', details: String(err) });
+    res.json({ reply: completion.choices[0].message.content });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Something went wrong." });
   }
 });
 
-// ✅ Start the server
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`✅ Server listening on http://localhost:${PORT}`));
+const PORT = 5000;
+app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
